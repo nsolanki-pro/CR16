@@ -1,0 +1,273 @@
+#!/bin/sh
+#
+# Copyright (C) 2016 by Naresh G Solanki
+# written by Naresh G Solanki <Naresh.Solanki.2011@gmail.com> and
+#
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+
+PWDROOT=$(pwd)
+cd $PWDROOT
+
+INSTALL_PREFIX="/opt/crossCR16/"
+TARGET_ARCH="cr16-elf"
+EXT_PREFIX="tmp/ext"
+TAR_PREFIX="tmp/tar"
+BUILD_PREFIX="tmp/build"
+
+# Latest versions of package.
+GMP_VERSION=6.1.1
+MPFR_VERSION=3.1.4
+MPC_VERSION=1.0.3
+LIBELF_VERSION=0.8.13
+GCC_VERSION=5.3.0
+BINUTILS_VERSION=2.26
+
+# package urls
+GMP_URL="http://ftpmirror.gnu.org/gmp/gmp-${GMP_VERSION}.tar.xz"
+MPFR_URL="http://ftpmirror.gnu.org/mpfr/mpfr-${MPFR_VERSION}.tar.xz"
+MPC_URL="http://ftpmirror.gnu.org/mpc/mpc-${MPC_VERSION}.tar.gz"
+LIBELF_URL="http://www.mr511.de/software/libelf-${LIBELF_VERSION}.tar.gz"
+GCC_URL="http://ftpmirror.gnu.org/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.bz2"
+BINUTILS_URL="http://ftpmirror.gnu.org/binutils/binutils-${BINUTILS_VERSION}.tar.bz2"
+
+# Tar path
+TAR_PATH=$PWDROOT"/"$TAR_PREFIX
+GMP_TAR=$TAR_PATH"/"$(basename $GMP_URL)
+MPFR_TAR=$TAR_PATH"/"$(basename $MPFR_URL)
+MPC_TAR=$TAR_PATH"/"$(basename $MPC_URL)
+LIBELF_TAR=$TAR_PATH"/"$(basename $LIBELF_URL)
+GCC_TAR=$TAR_PATH"/"$(basename $GCC_URL)
+BINUTILS_TAR=$TAR_PATH"/"$(basename $BINUTILS_URL)
+
+# Checksum path
+GMP_CKSUM=$GMP_TAR".cksum"
+MPFR_CKSUM=$MPFR_TAR".cksum"
+MPC_CKSUM=$MPC_TAR".cksum"
+LIBELF_CKSUM=$LIBELF_TAR".cksum"
+GCC_CKSUM=$GCC_TAR".cksum"
+BINUTILS_CKSUM=$BINUTILS_TAR".cksum"
+
+
+echo $GMP_TAR $MPFR_TAR $MPC_TAR $LIBELF_TAR $GCC_TAR $BINUTILS_TAR
+
+# Extract output dir.
+EXT_PATH=$PWDROOT"/"$EXT_PREFIX
+GMP_DIR=$EXT_PATH"/gmp-${GMP_VERSION}"
+MPFR_DIR=$EXT_PATH"/mpfr-${MPFR_VERSION}"
+MPC_DIR=$EXT_PATH"/mpc-${MPC_VERSION}"
+LIBELF_DIR=$EXT_PATH"/libelf-${LIBELF_VERSION}"
+GCC_DIR=$EXT_PATH"/gcc-${GCC_VERSION}"
+BINUTILS_DIR=$EXT_PATH"/binutils-${BINUTILS_VERSION}"
+
+# Build package dir
+BUILD_PATH=$PWDROOT"/"$BUILD_PREFIX
+GMP_BUILD=$BUILD_PATH"/gmp-${GMP_VERSION}"
+MPFR_BUILD=$BUILD_PATH"/mpfr-${MPFR_VERSION}"
+MPC_BUILD=$BUILD_PATH"/mpc-${MPC_VERSION}"
+LIBELF_BUILD=$BUILD_PATH"/libelf-${LIBELF_VERSION}"
+GCC_BUILD=$BUILD_PATH"/gcc-${GCC_VERSION}"
+BINUTILS_BUILD=$BUILD_PATH"/binutils-${BINUTILS_VERSION}"
+
+CONFIG_CACHE=$PWDROOT"/tmp/config.cache"
+
+if [ -f "$CONFIG_CACHE" ];
+then
+	echo ...
+else
+	touch $CONFIG_CACHE
+fi
+
+
+GMP_CONFIG=" --disable-shared --enable-fat --prefix=$INSTALL_PREFIX"
+GMP_MAKE=" -j2 "
+GMP_INSTALL=" install "
+
+MPFR_CONFIG=" --disable-shared --prefix=$INSTALL_PREFIX --infodir=$INSTALL_PREFIX/info --with-gmp=$INSTALL_PREFIX"
+MPFR_MAKE=" -j2 "
+MPFR_INSTALL=" install "
+
+MPC_CONFIG=" --disable-shared --prefix=$INSTALL_PREFIX --infodir=$INSTALL_PREFIX/info --with-gmp=$INSTALL_PREFIX --with-mpfr=$INSTALL_PREFIX  "
+MPC_MAKE=" -j2 "
+MPC_INSTALL=" install "
+
+LIBELF_CONFIG=" --disable-shared --prefix=$INSTALL_PREFIX --infodir=$INSTALL_PREFIX/info --host=i686 "
+LIBELF_MAKE=" -j2 "
+LIBELF_INSTALL=" install "
+
+BINUTILS_CONFIG=" --prefix=$INSTALL_PREFIX --target=$TARGET_ARCH --enable-targets=$TARGET_ARCH --disable-werror --disable-nls --enable-lto --enable-gold --disable-werror --disable-nls --enable-lto --enable-gold --enable-plugins --enable-multilibs "
+BINUTILS_MAKE=" -j2 "
+BINUTILS_INSTALL=" install "
+
+GCC_CONFIG=" --prefix=$INSTALL_PREFIX --libexecdir=$INSTALL_PREFIX/lib --target=$TARGET_ARCH --disable-werror --disable-shared --enable-lto --enable-plugins --enable-gold --enable-ld=default --disable-libssp --disable-bootstrap --disable-nls --disable-libquadmath --without-headers --disable-threads --enable-interwork --enable-multilib --enable-targets=all --disable-libatomic --disable-libcc1 --disable-decimal-float --enable-languages=c --with-system-zlib --with-gmp=$INSTALL_PREFIX --with-mpfr=$INSTALL_PREFIX --with-mpc=$INSTALL_PREFIX --with-libelf=$INSTALL_PREFIX "
+GCC_MAKE=" -j2 all-gcc "
+GCC_INSTALL=" install-gcc "
+
+
+mkdir -p $EXT_PATH
+mkdir -p $TAR_PATH
+mkdir -p $BUILD_PATH
+mkdir -p $GMP_BUILD
+mkdir -p $MPFR_BUILD
+mkdir -p $MPC_BUILD
+mkdir -p $LIBELF_BUILD
+mkdir -p $GCC_BUILD
+mkdir -p $BINUTILS_BUILD
+
+
+
+# Downloading package:
+# 1. Check if package locally exist.
+# 2. if exist then verify with their checksum.
+# 3. if not exist then download them & generate checksum.
+# 4. Done
+# Parameters:
+# $0 - function name(unused), $1 - Download URL, $2 - Tar file path, $3 - Cksum file path
+
+download_package()
+	{
+
+	URL=$1
+	TAR=$2
+	CKSUM=$3
+	if [ -f $TAR ] && [ -f $CKSUM ] ; then
+		echo 	Package exists. Verifying cksum.
+		COMPUTE_CKSUM=$(  eval "cksum.exe $TAR  | awk '{print \$1}'")
+		CKSUM_FILE=$( eval "cat $CKSUM" )
+		if [ $COMPUTE_CKSUM -ne $CKSUM_FILE ] ; then
+			echo cheksum failure
+			rm $CKSUM -f
+			download_package $URL $TAR $CKSUM
+		fi 
+	else
+		echo doesnt exist. Need to download.
+		wget -c  $URL -O $TAR
+		if [ $? -ne 0  ]; then
+			exit 50
+		fi
+		cksum.exe $TAR  | awk '{print $1}' > $CKSUM
+	fi	
+	}
+
+
+# Extract package:
+# 1. Assume package is present.
+# 2. Assume package is tar file.
+# 3. extract it to ext path.
+# 4. Done
+# Parameters:
+# $0 - function name(unused), $1 - Tar file path, $2 - ext path
+
+extract_package()
+	{
+
+	EXT=$2
+	TAR_FILE=$1
+
+	cd $EXT
+	echo "Extracting ... " $(basename $TAR_FILE)
+	tar --no-overwrite-dir xf $TAR_FILE
+	cd $PWDROOT
+	}
+
+# Configure package:
+# 1. Assume package is extracted.
+# 2. configur it to build path.
+# 4. Done
+# Parameters:
+# $0 - function name(unused), $1 - build path, $2 - ext path, $3 - config command, $4 config cache file path
+
+configure_package()
+	{
+	PBUILD_PATH=$1
+	SRC_PATH=$2
+	CONFIG=$3
+	CONFIG_CACHE=$4
+	CONFIG=$CONFIG" --cache-file="$CONFIG_CACHE
+	cd $PBUILD_PATH
+	eval $SRC_PATH/configure $CONFIG
+	cd -
+	
+	}
+
+# Make package:
+# 1. Assume package is configured.
+# 2. run make.
+# 4. Done
+# Parameters:
+# $0 - function name(unused), $1 - build path, $2 - make command
+make_package()
+	{
+	PBUILD_PATH=$1
+	MAKE_PARAMS=$2
+	cd $PBUILD_PATH
+	make $MAKE_PARAMS
+	cd -
+	}
+
+# Install package:
+# 1. Assume package is built.
+# 2. install it.
+# 4. Done
+# Parameters:
+# $0 - function name(unused), $1 - build path, $2 - make command
+install_package()
+	{
+	PBUILD_PATH=$1
+	MAKE_PARAMS=$2
+	cd $PBUILD_PATH
+	make $MAKE_PARAMS
+	cd -
+	}
+
+# Download package & compute checksum
+download_package $GMP_URL $GMP_TAR $GMP_CKSUM
+download_package $MPFR_URL $MPFR_TAR $MPFR_CKSUM
+download_package $MPC_URL $MPC_TAR $MPC_CKSUM
+download_package $LIBELF_URL $LIBELF_TAR $LIBELF_CKSUM
+download_package $GCC_URL $GCC_TAR $GCC_CKSUM
+download_package $BINUTILS_URL $BINUTILS_TAR $BINUTILS_CKSUM
+
+extract_package $GMP_TAR $EXT_PATH
+extract_package $MPFR_TAR $EXT_PATH
+extract_package $MPC_TAR $EXT_PATH
+extract_package $LIBELF_TAR $EXT_PATH
+extract_package $BINUTILS_TAR $EXT_PATH
+extract_package $GCC_TAR $EXT_PATH
+
+configure_package $GMP_BUILD $GMP_DIR "$GMP_CONFIG" $CONFIG_CACHE
+make_package $GMP_BUILD "$GMP_MAKE"
+install_package $GMP_BUILD "$GMP_INSTALL"
+
+configure_package $MPFR_BUILD $MPFR_DIR "$MPFR_CONFIG" $CONFIG_CACHE
+make_package $MPFR_BUILD "$MPFR_MAKE"
+install_package $MPFR_BUILD "$MPFR_INSTALL"
+
+configure_package $MPC_BUILD $MPC_DIR "$MPC_CONFIG" $CONFIG_CACHE
+make_package $MPC_BUILD "$MPC_MAKE"
+install_package $MPC_BUILD "$MPC_INSTALL"
+
+
+configure_package $LIBELF_BUILD $LIBELF_DIR "$LIBELF_CONFIG" $CONFIG_CACHE
+make_package $LIBELF_BUILD "$LIBELF_MAKE"
+install_package $LIBELF_BUILD "$LIBELF_INSTALL"
+
+
+configure_package $BINUTILS_BUILD $BINUTILS_DIR "$BINUTILS_CONFIG" $CONFIG_CACHE
+make_package $BINUTILS_BUILD "$BINUTILS_MAKE"
+install_package $BINUTILS_BUILD "$BINUTILS_INSTALL"
+
+configure_package $GCC_BUILD $GCC_DIR "$GCC_CONFIG" $CONFIG_CACHE
+make_package $GCC_BUILD "$GCC_MAKE"
+install_package $GCC_BUILD "$GCC_INSTALL"
+
+exit 0
+
